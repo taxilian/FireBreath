@@ -82,15 +82,9 @@ namespace
     }
 }
 
-ActiveXBrowserHost::ActiveXBrowserHost(IWebBrowser2 *doc, IOleClientSite* site)
-    : m_spClientSite(site), m_webBrowser(doc), m_messageWin(new FB::WinMessageWindow())
+ActiveXBrowserHost::ActiveXBrowserHost(const axSharedContainerPtr& axObjects)
+    : m_axObjects(axObjects), m_messageWin(new FB::WinMessageWindow())
 {
-    if (m_webBrowser) {
-        m_webBrowser->get_Document(&m_htmlDocDisp);
-        m_htmlDoc = m_htmlDocDisp;
-        m_htmlDoc->get_parentWindow(&m_htmlWin);
-        m_htmlWinDisp = m_htmlWin;
-    }
 }
 
 ActiveXBrowserHost::~ActiveXBrowserHost(void)
@@ -193,17 +187,7 @@ void ActiveXBrowserHost::shutdown()
     // Finally, run the main browser shutdown, which will fire off any cross-thread
     // calls that somehow haven't made it through yet
     BrowserHost::shutdown();
-
-    // Once that's done let's release any ActiveX resources that the browserhost
-    // is holding
-    m_spClientSite.Release();
-    m_htmlDoc.Release();
-    m_htmlDocDisp.Release();
-    m_htmlWin.Release();
-    m_webBrowser.Release();
-    m_htmlWinDisp.Release();
-    m_window.reset();
-    m_document.reset();
+    m_axObjects->releaseAll();
     DoDeferredRelease();
     assert(m_deferredObjects.empty());
 }
@@ -360,9 +344,18 @@ void ActiveXBrowserHost::DoDeferredRelease() const
 }
 
 
-void FB::ActiveX::ActiveXBrowserHost::deferred_release( IDispatch* m_obj ) const
+void FB::ActiveX::ActiveXBrowserHost::deferred_release( IDispatch* obj ) const
 {
-    m_deferredObjects.push(m_obj);
+    m_deferredObjects.push(obj);
+}
+
+void FB::ActiveX::ActiveXBrowserHost::deferred_release( const IDispatchShareableWeakPtr& weak ) const
+{
+    IDispatchShareablePtr obj(weak.lock());
+    if (obj) {
+        deferred_release(obj->getPtr());
+        m_axObjects->release(obj);
+    }
 }
 
 IDispatchEx* FB::ActiveX::ActiveXBrowserHost::getJSAPIWrapper( const FB::JSAPIWeakPtr& api, bool autoRelease/* = false*/ )

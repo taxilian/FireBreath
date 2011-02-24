@@ -20,6 +20,7 @@ Copyright 2009 Richard Bateman, Firebreath development team
 #include "JSAPI.h"
 #include "JSObject.h"
 #include "ActiveXBrowserHost.h"
+#include "axSharedContainer.h"
 #include <atlctl.h>
 #include <vector>
 #include <string>
@@ -34,20 +35,30 @@ namespace FB { namespace ActiveX {
         public FB::JSObject
     {
     public:
-        static boost::shared_ptr<IDispatchAPI> create(IDispatch *, const ActiveXBrowserHostPtr&);
+		static boost::shared_ptr<IDispatchAPI> create(const IDispatchShareableWeakPtr& obj, const ActiveXBrowserHostPtr&);
         virtual ~IDispatchAPI(void);
 
-        void *getEventId() const { return (void*)m_obj; }
+        void *getEventId() const
+        {
+            IDispatchShareablePtr obj(m_obj.lock());
+            return reinterpret_cast<void*>(obj ? obj->getPtr() : NULL);
+        }
         void *getEventContext() const { return m_browser->getContextID(); };
-        IDispatch *getIDispatch() const { return m_obj; }
+        IDispatch *getIDispatch() const
+        {
+            IDispatchShareablePtr obj(m_obj.lock());
+            return obj ? obj->getPtr() : NULL;
+        }
 
         // Enumerate members
         void getMemberNames(std::vector<std::string> &nameVector) const;
         size_t getMemberCount() const;
 
+        bool isValid() const { return !m_obj.expired(); }
+
     protected:
         ActiveXBrowserHostPtr m_browser;
-        IDispatch* m_obj;
+        IDispatchShareableWeakPtr m_obj;
         bool is_JSAPI;
         FB::JSAPIWeakPtr inner;
 
@@ -76,7 +87,7 @@ namespace FB { namespace ActiveX {
 
     private:
         friend boost::shared_ptr<IDispatchAPI> boost::make_shared<IDispatchAPI>(IDispatch * const &, const ActiveXBrowserHostPtr&);
-        IDispatchAPI(IDispatch *, const ActiveXBrowserHostPtr&);
+        IDispatchAPI(const IDispatchShareableWeakPtr& obj, const ActiveXBrowserHostPtr&);
     };
 } }
 #endif

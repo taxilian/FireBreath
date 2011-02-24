@@ -25,6 +25,7 @@ Copyright 2009 Richard Bateman, Firebreath development team
 #include "FBPointers.h"
 #include "SafeQueue.h"
 #include "ShareableReference.h"
+#include "axSharedContainer.h"
 #include "ActiveXFactoryDefinitions.h"
 
 namespace FB {
@@ -42,7 +43,7 @@ namespace FB {
             public FB::BrowserHost
         {
         public:
-            ActiveXBrowserHost(IWebBrowser2 *doc, IOleClientSite* clientSite);
+            ActiveXBrowserHost(const axSharedContainerPtr& axObjects);
             virtual ~ActiveXBrowserHost(void);
             virtual bool _scheduleAsyncCall(void (*func)(void *), void *userData) const;
 
@@ -73,15 +74,10 @@ namespace FB {
 
         protected:
             void initDOMObjects(); // This is const so that getDOMDocument/Window can be
-            CComQIPtr<IOleClientSite> m_spClientSite;
-            CComQIPtr<IHTMLDocument2> m_htmlDoc;
-            CComQIPtr<IDispatch> m_htmlDocDisp;
-            CComPtr<IHTMLWindow2> m_htmlWin;
-            CComPtr<IWebBrowser2> m_webBrowser;
-            CComQIPtr<IDispatch> m_htmlWinDisp;
             mutable FB::DOM::WindowPtr m_window;
             mutable FB::DOM::DocumentPtr m_document;
             boost::scoped_ptr<FB::WinMessageWindow> m_messageWin;
+            const axSharedContainerPtr& m_axObjects;
 
         private:
             mutable boost::shared_mutex m_xtmutex;
@@ -92,7 +88,8 @@ namespace FB {
         public:
             FB::variant getVariant(const VARIANT *cVar);
             void getComVariant(VARIANT *dest, const FB::variant &var);
-            void deferred_release( IDispatch* m_obj ) const;
+            void deferred_release( IDispatch* obj ) const;
+            void deferred_release( const IDispatchShareableWeakPtr& weak ) const;
             void DoDeferredRelease() const;
         };
     }

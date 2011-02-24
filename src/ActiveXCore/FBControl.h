@@ -77,8 +77,6 @@ namespace FB {
 
         protected:
             FB::PluginWindow *pluginWin;
-            CComQIPtr<IServiceProvider> m_serviceProvider;
-            CComQIPtr<IWebBrowser2> m_webBrowser;
             const std::string m_mimetype;
 
             DWORD m_dwCurrentSafety;

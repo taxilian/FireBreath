@@ -41,6 +41,9 @@ JSAPI::~JSAPI(void)
 void JSAPI::invalidate()
 {
     m_valid = false;
+    m_eventMap.clear();
+    m_defEventMap.clear();
+    m_evtIfaces.clear();
 }
 
 FB::VariantMap proxyProcessMap( const FB::VariantMap &args, const FB::JSAPIPtr& self, const FB::JSAPIPtr& proxy );

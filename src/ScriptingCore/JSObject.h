@@ -67,6 +67,19 @@ namespace FB
         virtual void *getEventContext() const { return NULL; }
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////
+        /// @fn virtual public  bool FB::JSObject::isValid()
+        ///
+        /// @brief  Returns true if the object is valid; false if not
+        ///
+        /// There are certain events that may invalidate all objects from the browser; if that happens,
+        /// this method will return false.
+        /// 
+        /// @returns bool
+        /// @since 1.5
+        ////////////////////////////////////////////////////////////////////////////////////////////////////
+        virtual bool isValid() const { return true; }
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////
         /// @fn virtual void InvokeAsync(const std::string& methodName, const std::vector<variant>& args)
         ///
         /// @brief  Just like Invoke, but works asynchronously.  Useful for javascript callbacks and events.

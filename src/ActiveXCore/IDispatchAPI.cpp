@@ -24,15 +24,14 @@ Copyright 2009 Richard Bateman, Firebreath development team
 
 using namespace FB::ActiveX;
 
-boost::shared_ptr<FB::ActiveX::IDispatchAPI> IDispatchAPI::create(IDispatch * obj, const ActiveXBrowserHostPtr& host)
+boost::shared_ptr<FB::ActiveX::IDispatchAPI> IDispatchAPI::create(const IDispatchShareableWeakPtr& obj, const ActiveXBrowserHostPtr& host)
 {
     return boost::make_shared<IDispatchAPI>(obj, host);
 }
 
-FB::ActiveX::IDispatchAPI::IDispatchAPI(IDispatch * obj, const ActiveXBrowserHostPtr& host) :
+FB::ActiveX::IDispatchAPI::IDispatchAPI(const IDispatchShareableWeakPtr& obj, const ActiveXBrowserHostPtr& host) :
     FB::JSObject(host), m_obj(obj), m_browser(host), is_JSAPI(false)
 {
-    m_obj->AddRef();
     FB::JSAPIPtr ptr(getJSAPI());
     
     if (ptr) {
@@ -46,7 +45,7 @@ FB::ActiveX::IDispatchAPI::IDispatchAPI(IDispatch * obj, const ActiveXBrowserHos
 IDispatchAPI::~IDispatchAPI(void)
 {
     m_browser->deferred_release(m_obj);
-    m_obj = NULL;
+    m_obj.reset();
 }
 
 void IDispatchAPI::getMemberNames(std::vector<std::string> &nameVector) const
@@ -63,9 +62,11 @@ void IDispatchAPI::getMemberNames(std::vector<std::string> &nameVector) const
         return;
     }
 
-    CComQIPtr<IDispatchEx> dispatchEx(m_obj);
+    IDispatchShareablePtr obj(m_obj.lock());
+    CComQIPtr<IDispatchEx> dispatchEx;
+    if (obj) dispatchEx = obj->getPtr();
     if (!dispatchEx) {
-        throw FB::script_error("Cannot enumerate members; IDispatchEx not supported");
+        throw FB::script_error("Cannot enumerate members; IDispatchEx not supported or object not valid");
     }
 
     DISPID dispid = DISPID_STARTENUM;
@@ -96,7 +97,9 @@ size_t IDispatchAPI::getMemberCount() const
         return tmp->getMemberCount();
     }
 
-    CComQIPtr<IDispatchEx> dispatchEx(m_obj);
+    IDispatchShareablePtr obj(m_obj.lock());
+    CComQIPtr<IDispatchEx> dispatchEx;
+    if (obj) dispatchEx = obj->getPtr();
     if (!dispatchEx) {
         return -1;
     }
@@ -124,13 +127,17 @@ DISPID IDispatchAPI::getIDForName(const std::wstring& name) const
 
     HRESULT hr = E_NOTIMPL;
     DISPID dispId = DISPID_UNKNOWN;
-    CComQIPtr<IDispatchEx> dispatchEx(m_obj);
+    IDispatchShareablePtr obj(m_obj.lock());
+    CComQIPtr<IDispatchEx> dispatchEx;
+    if (obj) dispatchEx = obj->getPtr();
     if (dispatchEx) {
         hr = dispatchEx->GetDispID(CComBSTR(name.c_str()),
             fdexNameEnsure | fdexNameCaseSensitive | 0x10000000, &dispId);
-    } else {
+    } else if (obj) {
         const wchar_t* p = name.c_str();
-        hr = m_obj->GetIDsOfNames(IID_NULL, const_cast<LPOLESTR*>(&p), 1, LOCALE_SYSTEM_DEFAULT, &dispId);
+        hr = obj->getPtr()->GetIDsOfNames(IID_NULL, const_cast<LPOLESTR*>(&p), 1, LOCALE_SYSTEM_DEFAULT, &dispId);
+    } else {
+        return DISPID_UNKNOWN;
     }
 
     if (FAILED(hr)) {
@@ -203,13 +210,17 @@ bool IDispatchAPI::HasProperty(const std::string& propertyName) const
     HRESULT hr;
     CComVariant result;
     CComExcepInfo exceptionInfo;
-    CComQIPtr<IDispatchEx> dispatchEx(m_obj);
+    IDispatchShareablePtr obj(m_obj.lock());
+    CComQIPtr<IDispatchEx> dispatchEx;
+    if (obj) dispatchEx = obj->getPtr();
     if (dispatchEx) {
         hr = dispatchEx->InvokeEx(dispId, LOCALE_USER_DEFAULT, 
             DISPATCH_PROPERTYGET, &params, &result, &exceptionInfo, NULL);
-    } else {
-        hr = m_obj->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
+    } else if (obj) {
+        hr = obj->getPtr()->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
             DISPATCH_PROPERTYGET, &params, &result, &exceptionInfo, NULL);
+    } else {
+        return false; // object invalid
     }
 
     return SUCCEEDED(hr);
@@ -276,13 +287,17 @@ FB::variant IDispatchAPI::GetProperty(const std::string& propertyName)
     HRESULT hr;
     CComVariant result;
     CComExcepInfo exceptionInfo;
-    CComQIPtr<IDispatchEx> dispatchEx(m_obj);
+    IDispatchShareablePtr obj(m_obj.lock());
+    CComQIPtr<IDispatchEx> dispatchEx;
+    if (obj) dispatchEx = obj->getPtr();
     if (dispatchEx) {
         hr = dispatchEx->InvokeEx(dispId, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &params,
             &result, &exceptionInfo, NULL);
-    } else {
-        hr = m_obj->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
+    } else if (obj) {
+        hr = obj->getPtr()->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
             DISPATCH_PROPERTYGET, &params, &result, &exceptionInfo, NULL);
+    } else {
+        throw FB::object_invalidated();
     }
     
     if (FAILED(hr)) {
@@ -327,13 +342,17 @@ void IDispatchAPI::SetProperty(const std::string& propertyName, const FB::varian
     HRESULT hr;
     CComVariant result;
     CComExcepInfo exceptionInfo;
-    CComQIPtr<IDispatchEx> dispatchEx(m_obj);
+    IDispatchShareablePtr obj(m_obj.lock());
+    CComQIPtr<IDispatchEx> dispatchEx;
+    if (obj) dispatchEx = obj->getPtr();
     if (dispatchEx) {
         hr = dispatchEx->InvokeEx(dispId, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYPUTREF, &params,
             &result, &exceptionInfo, NULL);
-    } else {
-        hr = m_obj->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
+    } else if (obj) {
+        hr = obj->getPtr()->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
             DISPATCH_PROPERTYPUT, &params, &result, &exceptionInfo, NULL);
+    } else {
+        throw FB::object_invalidated();
     }
 
     if (FAILED(hr)) {
@@ -388,10 +407,15 @@ FB::variant IDispatchAPI::Invoke(const std::string& methodName, const std::vecto
 
     CComVariant result;
     CComExcepInfo exceptionInfo;
-    HRESULT hr = m_obj->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
-        DISPATCH_METHOD, &params, &result, &exceptionInfo, NULL);
-    if (FAILED(hr)) {
-        throw FB::script_error("Method invoke failed");
+    IDispatchShareablePtr obj(m_obj.lock());
+    if (obj) {
+        HRESULT hr = m_obj->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
+            DISPATCH_METHOD, &params, &result, &exceptionInfo, NULL);
+        if (FAILED(hr)) {
+            throw FB::script_error("Method invoke failed");
+        }
+    } else {
+        throw FB::object_invalidated();
     }
     
     return m_browser->getVariant(&result);
@@ -404,14 +428,15 @@ FB::variant IDispatchAPI::Invoke(const std::string& methodName, const std::vecto
 
 FB::JSAPIPtr IDispatchAPI::getJSAPI() const
 {
-    if (!m_obj) {
+    IDispatchShareablePtr obj(m_obj.lock());
+    if (!obj) {
         return FB::JSAPIPtr();
     }
     JSAPI_IDispatchExBase* p(NULL);
-    CComQIPtr<IFireBreathObject> fbObj(m_obj);
+    CComQIPtr<IFireBreathObject> fbObj(obj->getPtr());
     // If it's our own element then both of these will pass!  This means it isn't us!
-    CComQIPtr<IHTMLElement> testObj(m_obj);
-    if (!testObj && fbObj && (p = dynamic_cast<JSAPI_IDispatchExBase*>(m_obj))) {
+    CComQIPtr<IHTMLElement> testObj(obj->getPtr());
+    if (!testObj && fbObj && (p = dynamic_cast<JSAPI_IDispatchExBase*>(obj->getPtr()))) {
         return p->getAPI();
     }
 
