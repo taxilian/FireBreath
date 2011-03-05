@@ -102,6 +102,10 @@ NPError NpapiPluginX11::SetWindow(NPWindow* window)
         }
 
         if (pluginWin == NULL) {
+            if (window->width == 0 || window->height == 0) {
+                // We can't do anything if the window is 0x0; don't create it
+                return NPERR_NO_ERROR;
+            }
             GdkNativeWindow browserWindow;
             m_npHost->GetValue(NPNVnetscapeWindow, (void*)&browserWindow);
 

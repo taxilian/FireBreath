@@ -47,40 +47,40 @@ PluginWindowX11::PluginWindowX11(const WindowContextX11& ctx)
     FBLOG_INFO("FB.PluginWindowX11", "Creating new PluginWindowX11");
 #if FB_GUI_DISABLED != 1
     m_container = gtk_plug_new((GdkNativeWindow)ctx.window);
-    m_canvas = gtk_drawing_area_new();
+    //m_canvas = gtk_drawing_area_new();
 #ifdef GTK_WIDGET_SET_FLAGS
-    GTK_WIDGET_SET_FLAGS(GTK_WIDGET(m_canvas), GTK_CAN_FOCUS);
+    //GTK_WIDGET_SET_FLAGS(GTK_WIDGET(m_canvas), GTK_CAN_FOCUS);
 #else // gtk+-2.22 or newer
-    gtk_widget_set_can_focus(GTK_WIDGET(m_canvas), true);
+    //gtk_widget_set_can_focus(GTK_WIDGET(m_canvas), true);
 #endif
 
-    gtk_widget_add_events(
-        m_canvas,
-        GDK_BUTTON_PRESS_MASK |
-        GDK_BUTTON_RELEASE_MASK |
-        GDK_KEY_PRESS_MASK |
-        GDK_KEY_RELEASE_MASK |
-        GDK_POINTER_MOTION_MASK |
-        GDK_POINTER_MOTION_HINT_MASK |
-        GDK_SCROLL_MASK |
-        GDK_EXPOSURE_MASK |
-        GDK_VISIBILITY_NOTIFY_MASK |
-        GDK_ENTER_NOTIFY_MASK |
-        GDK_LEAVE_NOTIFY_MASK |
-        GDK_FOCUS_CHANGE_MASK
-    );
+    //gtk_widget_add_events(
+        //m_canvas,
+        //GDK_BUTTON_PRESS_MASK |
+        //GDK_BUTTON_RELEASE_MASK |
+        //GDK_KEY_PRESS_MASK |
+        //GDK_KEY_RELEASE_MASK |
+        //GDK_POINTER_MOTION_MASK |
+        //GDK_POINTER_MOTION_HINT_MASK |
+        //GDK_SCROLL_MASK |
+        //GDK_EXPOSURE_MASK |
+        //GDK_VISIBILITY_NOTIFY_MASK |
+        //GDK_ENTER_NOTIFY_MASK |
+        //GDK_LEAVE_NOTIFY_MASK |
+        //GDK_FOCUS_CHANGE_MASK
+    //);
 
-    m_handler_id = g_signal_connect(G_OBJECT(m_canvas), "event", G_CALLBACK(&PluginWindowX11::_EventCallback), this);
-    gtk_widget_show(m_canvas);
-    gtk_container_add(GTK_CONTAINER(m_container), m_canvas);
-    gtk_widget_show(m_container);
+    //m_handler_id = g_signal_connect(G_OBJECT(m_canvas), "event", G_CALLBACK(&PluginWindowX11::_EventCallback), this);
+    //gtk_widget_show(m_canvas);
+    //gtk_container_add(GTK_CONTAINER(m_container), m_canvas);
+    //gtk_widget_show(m_container);
 #endif
 }
 
 PluginWindowX11::~PluginWindowX11()
 {
 #if FB_GUI_DISABLED != 1
-    g_signal_handler_disconnect(G_OBJECT(m_canvas), m_handler_id);
+    //g_signal_handler_disconnect(G_OBJECT(m_canvas), m_handler_id);
 #endif
     FBLOG_INFO("FB.PluginWindowX11", "Destroying PluginWindowX11");
 }
