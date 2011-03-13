@@ -22,9 +22,11 @@ Copyright 2010 Richard Bateman, Firebreath development team
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/weak_ptr.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/noncopyable.hpp>
 #include "FBPointers.h"
 #include "ShareableReference.h"
 #include <shlguid.h>
+#include <list>
 
 namespace FB { namespace ActiveX {
 
@@ -36,32 +38,24 @@ namespace FB { namespace ActiveX {
     FB_FORWARD_PTR(axSharedContainer);
     class axSharedContainer : public boost::enable_shared_from_this<axSharedContainer>, boost::noncopyable {
     public:
-        void releaseAll()
-        {
-            m_spClientSite.Release();
-            m_serviceProvider.Release();
-            m_webBrowser.Release();
-            m_htmlDocDisp.Release();
-            m_htmlDoc.Release();
-            m_htmlWin.Release();
-            m_htmlWinDisp.Release();
-            ActiveXBrowserHostPtr host(m_weakHost.lock());
-            if (host) {
-                for (std::list<IDispatchShareablePtr>::iterator it = m_IDispatchObjects.begin();
-                    it != m_IDispatchObjects.end(); ++it) {
-                    // Make sure we release the objects with the host
-                    host->deferred_release((*it)->getPtr());
-                    m_IDispatchObjects.erase(it++);
-                }
-            }
-        }
+        void releaseAll();
         void release(const IDispatchShareablePtr& obj)
         {
             // This one is called by the browserhost, so we don't need to call deferred_release
             // it has already been called
             m_IDispatchObjects.remove(obj);
         }
-        void setSite(CComQIPtr<IOleClientSite>& site)
+        void clearSite()
+        {
+            m_spClientSite.Release();
+            m_webBrowser.Release();
+            m_serviceProvider.Release();
+            m_htmlDoc.Release();
+            m_htmlDocDisp.Release();
+            m_htmlWin.Release();
+            m_htmlWinDisp.Release();
+        }
+        void setSite(const CComPtr<IOleClientSite>& site)
         {
             m_spClientSite = site;
             m_serviceProvider = site;
@@ -73,6 +67,13 @@ namespace FB { namespace ActiveX {
                 m_htmlWinDisp = m_htmlWin;
             }
         }
+        void setHost(const ActiveXBrowserHostWeakPtr &weakHost) { m_weakHost = weakHost; }
+        IDispatchShareableWeakPtr manageObject(IDispatch* obj) {
+            IDispatchShareablePtr ptr(boost::make_shared<IDispatchShareable>(obj));
+            m_IDispatchObjects.push_back(ptr);
+            return ptr;
+        }
+
     private:
         ActiveXBrowserHostWeakPtr m_weakHost;
         std::list<IDispatchShareablePtr> m_IDispatchObjects;

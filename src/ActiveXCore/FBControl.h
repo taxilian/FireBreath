@@ -28,6 +28,7 @@ Copyright 2009 Richard Bateman, Firebreath development team
 #include "logging.h"
 #include "JSAPI_IDispatchEx.h"
 #include "PluginInfo.h"
+#include "axSharedContainer.h"
 
 #include "BrowserPlugin.h"
 #include "PluginCore.h"
@@ -80,7 +81,7 @@ namespace FB {
             const std::string m_mimetype;
 
             DWORD m_dwCurrentSafety;
-
+            axSharedContainerPtr m_axObjects;
             ActiveXBrowserHostPtr m_host;
 
         protected:
@@ -89,7 +90,7 @@ namespace FB {
             // The methods in this class are positioned in this file in the
             // rough order that they will be called in.
             CFBControl() : JSAPI_IDispatchEx<CFBControlX, ICurObjInterface, piid>(pMT), FB::BrowserPlugin(pMT),
-                pluginWin(NULL), m_mimetype(pMT)
+                pluginWin(NULL), m_mimetype(pMT), m_axObjects(boost::make_shared<axSharedContainer>())
             {
                 FB::PluginCore::setPlatform("Windows", "IE");
                 setFSPath(g_dllPath);
@@ -246,21 +247,15 @@ namespace FB {
         {
             HRESULT hr = IObjectWithSiteImpl<CFBControl<pFbCLSID,pMT,ICurObjInterface,piid,plibid> >::SetSite(pUnkSite);
             if (!pUnkSite || !pluginMain) {
-                m_webBrowser.Release();
-                m_serviceProvider.Release();
+                m_axObjects->clearSite(); 
                 if (m_host)
                     m_host->shutdown();
                 m_host.reset();
                 return hr;
             }
-            m_serviceProvider = pUnkSite;
-            if (!m_serviceProvider)
-                return E_FAIL;
-            m_serviceProvider->QueryService(SID_SWebBrowserApp, IID_IWebBrowser2, reinterpret_cast<void**>(&m_webBrowser));
-
-            if (m_webBrowser) {
-                m_propNotify = m_spClientSite;
-            }
+            CComQIPtr<IOleClientSite> cs(pUnkSite);
+            m_spClientSite = cs;
+            m_axObjects->setSite(m_spClientSite);
 
             // There will be no window this time!
             clientSiteSet();
@@ -273,22 +268,15 @@ namespace FB {
         {
             HRESULT hr = IOleObjectImpl<CFBControlX>::SetClientSite (pClientSite);
             if (!pClientSite || !pluginMain) {
-                m_webBrowser.Release();
-                m_serviceProvider.Release();
+               
                 if (m_host)
                     m_host->shutdown();
                 m_host.reset();
                 return hr;
             }
 
-            m_serviceProvider = pClientSite;
-            if (!m_serviceProvider)
-                return E_FAIL;
-            m_serviceProvider->QueryService(SID_SWebBrowserApp, IID_IWebBrowser2, reinterpret_cast<void**>(&m_webBrowser));
-
-            if (m_webBrowser) {
-                m_propNotify = m_spClientSite;
-            }
+            m_spClientSite = pClientSite;
+            m_axObjects->setSite(pClientSite);
 
             clientSiteSet();
 
@@ -313,6 +301,7 @@ namespace FB {
         {
             HRESULT hr = CComControl<CFBControlX>::InPlaceActivate(iVerb, prcPosRect);
 
+            m_axObjects->setSite(m_spClientSite);
             if (hr != S_OK)
                 return hr;
 
@@ -336,7 +325,7 @@ namespace FB {
         template <const GUID* pFbCLSID, const char* pMT, class ICurObjInterface, const IID* piid, const GUID* plibid>
         STDMETHODIMP CFBControl<pFbCLSID, pMT,ICurObjInterface,piid,plibid>::InPlaceDeactivate( void )
         {
-            shutdown();
+            m_axObjects->clearSite();
             HRESULT hr = IOleInPlaceObjectWindowlessImpl<CFBControlX>::InPlaceDeactivate();
             return hr;
         }
@@ -391,7 +380,8 @@ namespace FB {
         template <const GUID* pFbCLSID, const char* pMT, class ICurObjInterface, const IID* piid, const GUID* plibid>
         void CFBControl<pFbCLSID, pMT,ICurObjInterface,piid,plibid>::clientSiteSet()
         {
-            m_host = ActiveXBrowserHostPtr(new ActiveXBrowserHost(m_webBrowser, m_spClientSite));
+            m_host = ActiveXBrowserHostPtr(new ActiveXBrowserHost(m_axObjects));
+            m_axObjects->setHost(m_host);
             pluginMain->SetHost(FB::ptr_cast<FB::BrowserHost>(m_host));
         }
 
@@ -427,9 +417,6 @@ namespace FB {
             if (m_host)
                 m_host->shutdown();
             pluginMain.reset(); // This should delete the plugin object
-            m_propNotify.Release();
-            m_webBrowser.Release();
-            m_serviceProvider.Release();
             m_connPtMap.clear();
             m_host.reset();
         }

@@ -66,6 +66,10 @@ namespace FB {
             void evaluateJavaScript(const std::string &script);
             void shutdown();
 
+        IDispatchShareableWeakPtr manageObject(IDispatch* obj) {
+            return m_axObjects->manageObject(obj);
+        }
+
         public:
             FB::DOM::WindowPtr _createWindow(const FB::JSObjectPtr& obj) const;
             FB::DOM::DocumentPtr _createDocument(const FB::JSObjectPtr& obj) const;
